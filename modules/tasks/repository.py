@@ -1,90 +1,95 @@
-from core.db import get_connection
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from core.db import get_session
 from modules.tasks.model import Task
 
 
 class TaskRepository:
-    def create_table(self) -> None:
-        from modules.tasks.schema import CREATE_TASKS_TABLE_SQL
-
-        with get_connection() as connection:
-            connection.execute(CREATE_TASKS_TABLE_SQL)
-            connection.commit()
-
-    def create(self, title: str, is_done: bool = False) -> Task:
-        query = """
-        INSERT INTO tasks (title, is_done)
-        VALUES (?, ?)
-        """
-
-        with get_connection() as connection:
-            cursor = connection.execute(query, (title, int(is_done)))
-            connection.commit()
-
-            return Task(
-                id=cursor.lastrowid,
+    def create(
+        self,
+        title: str,
+        is_done: bool = False,
+        parent_id: int | None = None,
+    ) -> Task:
+        with get_session() as session:
+            task = Task(
                 title=title,
                 is_done=is_done,
+                parent_id=parent_id,
             )
+            session.add(task)
+            session.flush()
+            session.refresh(task)
+            return task
 
     def get_all(self) -> list[Task]:
-        query = """
-        SELECT id, title, is_done
-        FROM tasks
-        ORDER BY id ASC
-        """
-
-        with get_connection() as connection:
-            rows = connection.execute(query).fetchall()
-
-        return [
-            Task(
-                id=row["id"],
-                title=row["title"],
-                is_done=bool(row["is_done"]),
+        with get_session() as session:
+            stmt = (
+                select(Task)
+                .options(selectinload(Task.children))
+                .order_by(Task.id.asc())
             )
-            for row in rows
-        ]
+            return list(session.scalars(stmt).all())
 
     def get_by_id(self, task_id: int) -> Task | None:
-        query = """
-        SELECT id, title, is_done
-        FROM tasks
-        WHERE id = ?
-        """
-
-        with get_connection() as connection:
-            row = connection.execute(query, (task_id,)).fetchone()
-
-        if row is None:
-            return None
-
-        return Task(
-            id=row["id"],
-            title=row["title"],
-            is_done=bool(row["is_done"]),
-        )
+        with get_session() as session:
+            stmt = (
+                select(Task)
+                .where(Task.id == task_id)
+                .options(selectinload(Task.children))
+            )
+            return session.scalar(stmt)
 
     def update(
         self,
         task_id: int,
-        title: str,
-        is_done: bool,
-    ) -> bool:
-        query = """
-        UPDATE tasks
-        SET title = ?, is_done = ?
-        WHERE id = ?
-        """
+        *,
+        title: str | None = None,
+        is_done: bool | None = None,
+        parent_id: int | None = None,
+    ) -> Task | None:
+        with get_session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                return None
 
-        with get_connection() as connection:
-            cursor = connection.execute(query, (title, int(is_done), task_id))
-            connection.commit()
-            return cursor.rowcount > 0
+            if title is not None:
+                task.title = title
+
+            if is_done is not None:
+                task.is_done = is_done
+
+            task.parent_id = parent_id
+            session.flush()
+            session.refresh(task)
+            return task
 
     def delete(self, task_id: int) -> bool:
-        query = "DELETE FROM tasks WHERE id = ?"
+        with get_session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                return False
 
-        with get_connection() as connection:
-            cursor = connection.execute(query, (task_id,))
-            connection.commit()
-            return cursor.rowcount > 0
+            session.delete(task)
+            session.flush()
+            return True
+
+    def get_root_tasks(self) -> list[Task]:
+        with get_session() as session:
+            stmt = (
+                select(Task)
+                .where(Task.parent_id.is_(None))
+                .options(selectinload(Task.children))
+                .order_by(Task.id.asc())
+            )
+            return list(session.scalars(stmt).all())
+
+    def get_subtasks(self, parent_id: int) -> list[Task]:
+        with get_session() as session:
+            stmt = (
+                select(Task)
+                .where(Task.parent_id == parent_id)
+                .order_by(Task.id.asc())
+            )
+            return list(session.scalars(stmt).all())

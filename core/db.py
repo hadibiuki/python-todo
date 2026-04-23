@@ -1,12 +1,44 @@
 from pathlib import Path
-import sqlite3
+from contextlib import contextmanager
+from typing import Iterator
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DATABASE_URL = f"sqlite:///{DATA_DIR / 'app.db'}"
 
 
-def get_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+class Base(DeclarativeBase):
+    pass
 
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    future=True,
+)
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+    class_=Session,
+)
+
+
+@contextmanager
+def get_session() -> Iterator[Session]:
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

@@ -1,31 +1,51 @@
+from core.init_db import init_db
 from modules.tasks import TaskRepository
 
 
 def main() -> None:
+    init_db()
+
     task_repository = TaskRepository()
-    task_repository.create_table()
 
-    created_task = task_repository.create("Learn scalable structure")
-    print("Created:", created_task)
+    root_task = task_repository.create("Build SQLAlchemy version")
+    sub_task_1 = task_repository.create(
+        "Create database layer",
+        parent_id=root_task.id,
+    )
+    sub_task_2 = task_repository.create(
+        "Create task repository",
+        parent_id=root_task.id,
+    )
 
-    # all_tasks = task_repository.get_all()
-    # print("\nAll tasks:")
-    # for task in all_tasks:
-    #     print(task)
+    print("Created root task:")
+    print(root_task)
 
+    print("\nCreated subtasks:")
+    print(sub_task_1)
+    print(sub_task_2)
 
-    # updated = task_repository.update(
-    #     task_id=created_task.id,
-    #     title="Learn scalable structure deeply",
+    print("\nAll tasks:")
+    for task in task_repository.get_all():
+        print(task)
+
+    print("\nRoot tasks only:")
+    for task in task_repository.get_root_tasks():
+        print(task)
+
+    print("\nSubtasks of root task:")
+    for task in task_repository.get_subtasks(root_task.id):
+        print(task)
+
+    # updated_task = task_repository.update(
+    #     root_task.id,
+    #     title="Build professional SQLAlchemy structure",
     #     is_done=True,
     # )
-    # print("\nUpdated:", updated)
+    # print("\nUpdated root task:")
+    # print(updated_task)
 
-    # found_task = task_repository.get_by_id(created_task.id)
-    # print("\nFound by id:", found_task)
-
-    # deleted = task_repository.delete(created_task.id)
-    # print("Deleted:", deleted)
+    # deleted = task_repository.delete(sub_task_2.id)
+    # print(f"\nDeleted sub_task_2: {deleted}")
 
 
 if __name__ == "__main__":
