@@ -1,6 +1,6 @@
 from core.db import Base, engine
 
-# مهم: import کردن مدل‌ها تا SQLAlchemy آن‌ها را register کند
+# مهم: مدل‌ها باید import شوند تا در metadata ثبت شوند
 from modules.tasks.model import Task  # noqa: F401
 
 

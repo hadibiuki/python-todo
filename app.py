@@ -1,51 +1,56 @@
 from core.init_db import init_db
-from modules.tasks import TaskRepository
+from modules.tasks import TaskCreate, TaskService, TaskUpdate
+from modules.tasks.exceptions import InvalidParentTaskError, TaskNotFoundError
 
 
 def main() -> None:
     init_db()
 
-    task_repository = TaskRepository()
+    task_service = TaskService()
 
-    root_task = task_repository.create("Build SQLAlchemy version")
-    sub_task_1 = task_repository.create(
-        "Create database layer",
-        parent_id=root_task.id,
-    )
-    sub_task_2 = task_repository.create(
-        "Create task repository",
-        parent_id=root_task.id,
-    )
+    try:
+        root_task = task_service.create_task(
+            TaskCreate(title="Build TaskService with Pydantic")
+        )
+        print("Created root task:")
+        print(root_task)
 
-    print("Created root task:")
-    print(root_task)
+        sub_task = task_service.create_task(
+            TaskCreate(
+                title="Add validation layer",
+                parent_id=root_task.id,
+            )
+        )
+        print("\nCreated sub task:")
+        print(sub_task)
 
-    print("\nCreated subtasks:")
-    print(sub_task_1)
-    print(sub_task_2)
+        print("\nAll tasks:")
+        for task in task_service.get_all_tasks():
+            print(task)
 
-    print("\nAll tasks:")
-    for task in task_repository.get_all():
-        print(task)
+        updated_root_task = task_service.update_task(
+            root_task.id,
+            TaskUpdate(
+                title="Build TaskService + Pydantic structure",
+                is_done=True,
+            ),
+        )
+        print("\nUpdated root task:")
+        print(updated_root_task)
 
-    print("\nRoot tasks only:")
-    for task in task_repository.get_root_tasks():
-        print(task)
+        loaded_task = task_service.get_task_by_id(root_task.id)
+        print("\nLoaded task by id:")
+        print(loaded_task)
 
-    print("\nSubtasks of root task:")
-    for task in task_repository.get_subtasks(root_task.id):
-        print(task)
+        task_service.delete_task(sub_task.id)
+        print("\nSub task deleted successfully.")
 
-    # updated_task = task_repository.update(
-    #     root_task.id,
-    #     title="Build professional SQLAlchemy structure",
-    #     is_done=True,
-    # )
-    # print("\nUpdated root task:")
-    # print(updated_task)
-
-    # deleted = task_repository.delete(sub_task_2.id)
-    # print(f"\nDeleted sub_task_2: {deleted}")
+    except InvalidParentTaskError as error:
+        print(f"Parent error: {error}")
+    except TaskNotFoundError as error:
+        print(f"Not found error: {error}")
+    except Exception as error:
+        print(f"Unexpected error: {error}")
 
 
 if __name__ == "__main__":

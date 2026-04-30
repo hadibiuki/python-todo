@@ -1,3 +1,5 @@
+import sqlite3
+import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Iterator
@@ -9,7 +11,34 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-DATABASE_URL = f"sqlite:///{DATA_DIR / 'app.db'}"
+
+def _sqlite_url(path: Path) -> str:
+    return f"sqlite:///{path.resolve().as_posix()}"
+
+
+def _can_use_sqlite_path(path: Path) -> bool:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(path) as connection:
+            connection.execute("PRAGMA user_version")
+        return True
+    except sqlite3.Error:
+        return False
+
+
+def _resolve_database_path() -> Path:
+    default_path = DATA_DIR / "app.db"
+    if _can_use_sqlite_path(default_path):
+        return default_path
+
+    fallback_dir = Path(tempfile.gettempdir()) / "todo"
+    fallback_path = fallback_dir / "app.db"
+    fallback_dir.mkdir(parents=True, exist_ok=True)
+    return fallback_path
+
+
+DATABASE_PATH = _resolve_database_path()
+DATABASE_URL = _sqlite_url(DATABASE_PATH)
 
 
 class Base(DeclarativeBase):
@@ -19,7 +48,6 @@ class Base(DeclarativeBase):
 engine = create_engine(
     DATABASE_URL,
     echo=False,
-    future=True,
 )
 
 SessionLocal = sessionmaker(

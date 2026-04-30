@@ -8,6 +8,7 @@ from modules.tasks.model import Task
 class TaskRepository:
     def create(
         self,
+        *,
         title: str,
         is_done: bool = False,
         parent_id: int | None = None,
@@ -74,6 +75,10 @@ class TaskRepository:
             session.delete(task)
             session.flush()
             return True
+
+    def exists(self, task_id: int) -> bool:
+        with get_session() as session:
+            return session.get(Task, task_id) is not None
 
     def get_root_tasks(self) -> list[Task]:
         with get_session() as session:
